@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小雞過馬路 🐥 躲避車車！</title>
+    <title>小雞過馬路 🐥 進階版</title>
     <style>
         :root {
             --bg-color: #2ecc71;
             --road-color: #34495e;
+            --btn-bg: rgba(255, 255, 255, 0.3);
         }
         body {
             margin: 0;
@@ -15,18 +16,14 @@
             overflow: hidden;
             font-family: 'Arial', sans-serif;
             background-color: var(--bg-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
             touch-action: none;
         }
         #game-container {
             position: relative;
             width: 100vw;
-            height: 80vh;
+            height: 100vh;
             background-color: var(--bg-color);
             overflow: hidden;
-            border-bottom: 5px solid #27ae60;
         }
         .road {
             position: absolute;
@@ -42,13 +39,13 @@
             top: 50%;
             width: 100%;
             height: 2px;
-            border-top: 2px dashed rgba(255,255,255,0.3);
+            border-top: 2px dashed rgba(255,255,255,0.2);
         }
         #player {
             position: absolute;
-            width: 30px;
-            height: 30px;
-            font-size: 24px;
+            width: 34px;
+            height: 34px;
+            font-size: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -64,55 +61,72 @@
             align-items: center;
             justify-content: center;
         }
-        #ui {
-            width: 100%;
-            height: 20vh;
+        /* 半透明控制區域 */
+        #ui-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            background: #fff;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
-        #score-board {
-            font-size: 24px;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 10px;
+            pointer-events: none;
         }
         .controls {
             display: grid;
-            grid-template-columns: repeat(3, 60px);
+            grid-template-columns: repeat(3, 70px);
             gap: 10px;
+            pointer-events: auto;
         }
         .btn {
-            width: 60px;
-            height: 50px;
-            background: #eee;
-            border: 2px solid #ccc;
-            border-radius: 10px;
+            width: 70px;
+            height: 70px;
+            background: var(--btn-bg);
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 28px;
+            color: white;
             cursor: pointer;
-            -webkit-user-select: none;
+            backdrop-filter: blur(5px);
+            -webkit-tap-highlight-color: transparent;
         }
-        .btn:active { background: #ddd; transform: scale(0.95); }
+        .btn:active { background: rgba(255,255,255,0.5); }
+        
+        #score-tag {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 60;
+        }
+
+        #level-tag {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+            color: #f1c40f;
+            font-weight: bold;
+            z-index: 60;
+        }
+
         #overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
             color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 100;
-            display: none;
         }
         #start-btn {
             padding: 15px 40px;
@@ -123,101 +137,120 @@
             cursor: pointer;
             color: #333;
             font-weight: bold;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
     <div id="game-container">
+        <div id="score-tag">分數: 0</div>
+        <div id="level-tag">等級: 1</div>
         <div id="player">🐥</div>
-    </div>
-    <div id="ui">
-        <div id="score-board">分數: 0</div>
-        <div class="controls">
-            <div></div>
-            <div class="btn" onclick="move('up')">▲</div>
-            <div></div>
-            <div class="btn" onclick="move('left')">◀</div>
-            <div class="btn" onclick="move('down')">▼</div>
-            <div class="btn" onclick="move('right')">▶</div>
+        
+        <div id="ui-overlay">
+            <div class="controls">
+                <div></div>
+                <div class="btn" id="ctrl-up">▲</div>
+                <div></div>
+                <div class="btn" id="ctrl-left">◀</div>
+                <div class="btn" id="ctrl-down">▼</div>
+                <div class="btn" id="ctrl-right">▶</div>
+            </div>
         </div>
     </div>
+
     <div id="overlay">
         <h1 id="msg">小雞過馬路</h1>
-        <p id="sub-msg">使用方向鍵或點擊按鈕移動</p>
+        <p id="sub-msg">點擊按鈕或使用方向鍵</p>
         <button id="start-btn" onclick="startGame()">開始遊戲</button>
     </div>
 
     <script>
         const container = document.getElementById('game-container');
         const player = document.getElementById('player');
-        const scoreBoard = document.getElementById('score-board');
+        const scoreBoard = document.getElementById('score-tag');
+        const levelBoard = document.getElementById('level-tag');
         const overlay = document.getElementById('overlay');
         const msg = document.getElementById('msg');
 
         let score = 0;
-        let playerX = window.innerWidth / 2 - 15;
-        let playerY = 0; // Bottom of screen relative to game-container
-        const step = 40;
+        let level = 1;
+        let playerX, playerY;
         let gameActive = false;
         let roads = [];
         let cars = [];
+        let animationId;
 
         function init() {
-            playerY = container.offsetHeight - 50;
-            updatePlayerPos();
-            createRoads();
+            resetPlayer();
             overlay.style.display = 'flex';
         }
 
-        function createRoads() {
+        function resetPlayer() {
+            playerX = container.offsetWidth / 2 - 17;
+            playerY = container.offsetHeight - 80;
+            updatePlayerPos();
+        }
+
+        function createLevel() {
             roads.forEach(r => r.remove());
+            cars.forEach(c => c.el.remove());
             roads = [];
-            for (let i = 1; i < 10; i++) {
+            cars = [];
+
+            // 難度隨等級增加：馬路數量與車速
+            const roadCount = Math.min(5 + level, 12);
+            const baseSpeed = 1.5 + (level * 0.3);
+
+            for (let i = 1; i <= roadCount; i++) {
                 const road = document.createElement('div');
                 road.className = 'road';
-                road.style.bottom = (i * 70) + 'px';
+                // 分佈馬路位置
+                const yPos = container.offsetHeight - 150 - (i * 70);
+                if (yPos < 60) break; // 不要蓋過分數欄
+                
+                road.style.top = yPos + 'px';
                 container.appendChild(road);
                 roads.push(road);
                 
-                // Spawn cars for each road
-                const speed = (Math.random() * 2 + 1) * (i % 2 === 0 ? 1 : -1);
-                spawnCar(i * 70, speed);
+                const speed = (Math.random() * baseSpeed + 1) * (i % 2 === 0 ? 1 : -1);
+                spawnCar(yPos, speed);
+                if (level > 3 && Math.random() > 0.5) spawnCar(yPos, speed, true); // 難度高時一條路兩輛車
             }
         }
 
-        function spawnCar(y, speed) {
+        function spawnCar(y, speed, offset = false) {
             const car = document.createElement('div');
             car.className = 'car';
-            car.innerText = ['🚗', '🚕', '🚙', '🚌', '🏎️'][Math.floor(Math.random() * 5)];
-            car.style.bottom = y + 15 + 'px';
-            let x = speed > 0 ? -50 : container.offsetWidth + 50;
+            car.innerText = ['🚗', '🚕', '🚙', '🚌', '🏎️', '🚐'][Math.floor(Math.random() * 6)];
+            car.style.top = y + 15 + 'px';
+            let x = offset ? (container.offsetWidth / 2) : (speed > 0 ? -50 : container.offsetWidth + 50);
             car.style.left = x + 'px';
             container.appendChild(car);
-            
-            const carObj = { el: car, x, y: y + 15, speed };
-            cars.push(carObj);
+            cars.push({ el: car, x, y: y + 15, speed });
         }
 
         function move(dir) {
             if (!gameActive) return;
+            const step = 45;
             if (dir === 'up') playerY -= step;
             if (dir === 'down') playerY += step;
             if (dir === 'left') playerX -= step;
             if (dir === 'right') playerX += step;
 
-            // Boundaries
-            if (playerX < 0) playerX = 0;
-            if (playerX > container.offsetWidth - 30) playerX = container.offsetWidth - 30;
-            if (playerY > container.offsetHeight - 30) playerY = container.offsetHeight - 30;
+            // RWD 邊界限制
+            playerX = Math.max(0, Math.min(playerX, container.offsetWidth - 34));
+            playerY = Math.max(0, Math.min(playerY, container.offsetHeight - 40));
 
-            // Score logic
-            if (playerY < 50) {
-                score += 10;
+            // 過關邏輯
+            if (playerY < 80) {
+                score += 100;
+                level++;
                 scoreBoard.innerText = `分數: ${score}`;
-                playerY = container.offsetHeight - 50;
-                createRoads(); // Refresh level
+                levelBoard.innerText = `等級: ${level}`;
+                resetPlayer();
+                createLevel();
             }
-
             updatePlayerPos();
         }
 
@@ -229,49 +262,56 @@
         function gameLoop() {
             if (!gameActive) return;
 
-            cars.forEach((car, index) => {
+            cars.forEach(car => {
                 car.x += car.speed;
                 car.el.style.left = car.x + 'px';
 
-                // Screen wrap
-                if (car.speed > 0 && car.x > container.offsetWidth) car.x = -50;
-                if (car.speed < 0 && car.x < -50) car.x = container.offsetWidth;
+                if (car.speed > 0 && car.x > container.offsetWidth) car.x = -60;
+                if (car.speed < 0 && car.x < -60) car.x = container.offsetWidth;
 
-                // Collision detection
-                const pRect = player.getBoundingClientRect();
-                const cRect = car.el.getBoundingClientRect();
+                // 碰撞偵測
+                const pBox = { x: playerX + 5, y: playerY + 5, w: 24, h: 24 };
+                const cBox = { x: car.x + 5, y: car.y + 5, w: 40, h: 20 };
 
-                if (!(pRect.right < cRect.left || 
-                      pRect.left > cRect.right || 
-                      pRect.bottom < cRect.top || 
-                      pRect.top > cRect.bottom)) {
+                if (pBox.x < cBox.x + cBox.w && pBox.x + pBox.w > cBox.x &&
+                    pBox.y < cBox.y + cBox.h && pBox.y + pBox.h > cBox.y) {
                     gameOver();
                 }
             });
 
-            requestAnimationFrame(gameLoop);
+            animationId = requestAnimationFrame(gameLoop);
         }
 
         function startGame() {
             score = 0;
+            level = 1;
             scoreBoard.innerText = `分數: 0`;
-            playerX = container.offsetWidth / 2 - 15;
-            playerY = container.offsetHeight - 50;
-            updatePlayerPos();
+            levelBoard.innerText = `等級: 1`;
+            resetPlayer();
+            createLevel();
             gameActive = true;
             overlay.style.display = 'none';
+            cancelAnimationFrame(animationId);
             gameLoop();
         }
 
         function gameOver() {
             gameActive = false;
-            msg.innerText = "砰！撞車了！😵";
+            msg.innerText = "😵 小雞變成烤雞了！";
+            document.getElementById('sub-msg').innerText = `最終分數: ${score} (等級 ${level})`;
+            document.getElementById('start-btn').innerText = "重新挑戰";
             overlay.style.display = 'flex';
-            cars.forEach(c => c.el.remove());
-            cars = [];
         }
 
-        // Keyboard support
+        // 控制綁定
+        const bindBtn = (id, dir) => {
+            const el = document.getElementById(id);
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); move(dir); });
+            el.addEventListener('mousedown', () => move(dir));
+        };
+        bindBtn('ctrl-up', 'up'); bindBtn('ctrl-down', 'down');
+        bindBtn('ctrl-left', 'left'); bindBtn('ctrl-right', 'right');
+
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowUp') move('up');
             if (e.key === 'ArrowDown') move('down');
@@ -279,6 +319,7 @@
             if (e.key === 'ArrowRight') move('right');
         });
 
+        window.onresize = () => { resetPlayer(); createLevel(); };
         window.onload = init;
     </script>
 </body>
